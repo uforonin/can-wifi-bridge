@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# CMake / CLion
+cmake-build-*/
+build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Release distribution
+dist/
+
+# Python
+__pycache__/
+*.pyc
+
+# ESP-IDF
+firmware/esp32s3/build/
+firmware/esp32s3/managed_components/
+firmware/esp32s3/sdkconfig.old
+firmware/esp32s3/dependencies.lock
