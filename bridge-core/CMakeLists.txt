@@ -13,6 +13,7 @@ add_library(bridge_core_objs OBJECT
     src/bridge_protocol.c
     src/bridge_proto.c
     src/bridge_stream.c
+    src/bridge_tcp_client.c
     src/probe.c
 )
 
@@ -37,4 +38,12 @@ add_executable(test_stream
     test/test_stream.c
     src/bridge_proto.c
     src/bridge_stream.c
+)
+
+# CLI Tool
+add_executable(bridge_cli
+    tools/bridge_cli.c
+    src/bridge_proto.c
+    src/bridge_stream.c
+    src/bridge_tcp_client.c
 )
