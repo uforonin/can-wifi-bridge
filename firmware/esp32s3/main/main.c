@@ -8,6 +8,7 @@
 #include "esp_event.h"
 #include "nvs_flash.h"
 #include "led_strip.h"
+#include "can_source.h"
 
 static const char *TAG = "bridge_fw";
 
@@ -22,6 +23,7 @@ static const char *TAG = "bridge_fw";
 #define LED_STRIP_LED_NUM 1
 
 static led_strip_handle_t led_strip;
+static can_source_t* can_src = NULL;
 
 /* Wi-Fi event handler */
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
@@ -86,6 +88,22 @@ static void wifi_ap_init(void)
              WIFI_AP_SSID, WIFI_AP_PASS, WIFI_AP_CHANNEL);
 }
 
+static void can_source_task(void* arg)
+{
+    can_frame_t frame;
+    
+    while (1) {
+        int res = can_src->read(can_src, &frame, 100);
+        if (res > 0) {
+            ESP_LOGI(TAG, "CAN frame: ID=0x%03lX, DLC=%u, data=[%02X %02X %02X %02X %02X %02X %02X %02X]",
+                     (unsigned long)frame.id, frame.dlc,
+                     frame.data[0], frame.data[1], frame.data[2], frame.data[3],
+                     frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "bridge_fw started, ESP-IDF %s", esp_get_idf_version());
@@ -100,6 +118,21 @@ void app_main(void)
 
     led_init();
     wifi_ap_init();
+
+    /* Initialize CAN source (emulator for now) */
+    can_src = can_source_create_emul();
+    if (!can_src) {
+        ESP_LOGE(TAG, "Failed to create CAN source");
+        return;
+    }
+    
+    if (can_src->start(can_src) != 0) {
+        ESP_LOGE(TAG, "Failed to start CAN source");
+        return;
+    }
+    
+    /* Create task to read CAN frames */
+    xTaskCreate(can_source_task, "can_read", 4096, NULL, 5, NULL);
 
     /* Main loop: blink LED blue, 1s period */
     while (1) {
