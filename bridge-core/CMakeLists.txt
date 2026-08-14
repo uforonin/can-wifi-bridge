@@ -47,3 +47,18 @@ add_executable(bridge_cli
     src/bridge_stream.c
     src/bridge_tcp_client.c
 )
+
+# PCAN Bridge (TCP → PCAN-USB)
+add_executable(bridge_pcan_bridge
+    tools/bridge_pcan_bridge.c
+    src/bridge_proto.c
+    src/bridge_stream.c
+    src/bridge_tcp_client.c
+)
+target_link_libraries(bridge_pcan_bridge PCBUSB pthread)
+
+# PCAN Reader (reads from PCAN-USB)
+add_executable(bridge_pcan_reader
+    tools/bridge_pcan_reader.c
+)
+target_link_libraries(bridge_pcan_reader PCBUSB pthread)
