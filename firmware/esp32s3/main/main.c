@@ -9,23 +9,21 @@
 #include "nvs_flash.h"
 #include "led_strip.h"
 #include "can_source.h"
+#include "tcp_server.h"
 
 static const char *TAG = "bridge_fw";
 
-/* Wi-Fi AP credentials */
 #define WIFI_AP_SSID      "Bridge_AP"
 #define WIFI_AP_PASS      "bridge123"
 #define WIFI_AP_CHANNEL   1
 #define WIFI_AP_MAX_CONN  4
 
-/* RGB LED on GPIO48 (ESP32-S3-Zero) */
 #define LED_GPIO          48
 #define LED_STRIP_LED_NUM 1
 
 static led_strip_handle_t led_strip;
 static can_source_t* can_src = NULL;
 
-/* Wi-Fi event handler */
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                int32_t event_id, void* event_data)
 {
@@ -46,7 +44,7 @@ static void led_init(void)
         .led_model = LED_MODEL_WS2812,
     };
     led_strip_rmt_config_t rmt_config = {
-        .resolution_hz = 10 * 1000 * 1000,  /* 10 MHz */
+        .resolution_hz = 10 * 1000 * 1000,
     };
     ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
     led_strip_clear(led_strip);
@@ -64,9 +62,7 @@ static void wifi_ap_init(void)
 
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
                                                         ESP_EVENT_ANY_ID,
-                                                        &wifi_event_handler,
-                                                        NULL,
-                                                        NULL));
+                                                        &wifi_event_handler, NULL, NULL));
 
     wifi_config_t wifi_config = {
         .ap = {
@@ -88,10 +84,11 @@ static void wifi_ap_init(void)
              WIFI_AP_SSID, WIFI_AP_PASS, WIFI_AP_CHANNEL);
 }
 
+/* Единственный читатель can_source: логирует и рассылает клиентам */
 static void can_source_task(void* arg)
 {
     can_frame_t frame;
-    
+
     while (1) {
         int res = can_src->read(can_src, &frame, 100);
         if (res > 0) {
@@ -99,6 +96,7 @@ static void can_source_task(void* arg)
                      (unsigned long)frame.id, frame.dlc,
                      frame.data[0], frame.data[1], frame.data[2], frame.data[3],
                      frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
+            tcp_server_broadcast_can(&frame);
         }
         vTaskDelay(pdMS_TO_TICKS(10));
     }
@@ -108,7 +106,6 @@ void app_main(void)
 {
     ESP_LOGI(TAG, "bridge_fw started, ESP-IDF %s", esp_get_idf_version());
 
-    /* Initialize NVS (required for Wi-Fi) */
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -119,24 +116,16 @@ void app_main(void)
     led_init();
     wifi_ap_init();
 
-    /* Initialize CAN source (emulator for now) */
     can_src = can_source_create_emul();
-    if (!can_src) {
-        ESP_LOGE(TAG, "Failed to create CAN source");
-        return;
-    }
-    
-    if (can_src->start(can_src) != 0) {
-        ESP_LOGE(TAG, "Failed to start CAN source");
-        return;
-    }
-    
-    /* Create task to read CAN frames */
+    if (!can_src) { ESP_LOGE(TAG, "Failed to create CAN source"); return; }
+    if (can_src->start(can_src) != 0) { ESP_LOGE(TAG, "Failed to start CAN source"); return; }
+
+    if (tcp_server_start() != 0) { ESP_LOGE(TAG, "Failed to start TCP server"); return; }
+
     xTaskCreate(can_source_task, "can_read", 4096, NULL, 5, NULL);
 
-    /* Main loop: blink LED blue, 1s period */
     while (1) {
-        led_strip_set_pixel(led_strip, 0, 0, 0, 16);  /* Blue */
+        led_strip_set_pixel(led_strip, 0, 0, 0, 16);
         led_strip_refresh(led_strip);
         vTaskDelay(pdMS_TO_TICKS(500));
 
