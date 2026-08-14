@@ -105,7 +105,8 @@ static void can_source_task(void* arg)
 void app_main(void)
 {
     ESP_LOGI(TAG, "bridge_fw started, ESP-IDF %s", esp_get_idf_version());
-
+    /* Delay for debugger attach */
+    vTaskDelay(pdMS_TO_TICKS(5000));  // ← добавь эту строку
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
